@@ -1,4 +1,5 @@
 from llm_interface import LLMClient
+from models import ReasoningTask
 
 class AIAgent:
     """
@@ -9,16 +10,16 @@ class AIAgent:
         config (dict): Configuration for the AI agent, including steps for reasoning and system-wide prompts.
     """
     
-    def __init__(self, steps_config: dict[str, any]):
+    def __init__(self, steps_config: ReasoningTask):
         """
         Initializes the AIAgent with a configuration for its reasoning process.
         
         Args:
             steps_config (dict): The configuration dict containing the steps for reasoning and other necessary data.
         """
-        self.config = steps_config
+        self.task = steps_config
     
-    def reasoning(self, input_collection: dict[str, any], llmClient: 'LLMClient') -> str:
+    def reasoning(self, input_collection: dict[str, any], llmClient: LLMClient, logs_path: str=None) -> str:
         """
         Processes each step defined in the agent's configuration, using inputs from the input collection and 
         generating outputs via the LLM client. Each step's output is added back into the input collection for use in subsequent steps.
@@ -33,19 +34,23 @@ class AIAgent:
         Raises:
             AttributeError: If a required input for a step is not available in the input collection.
         """
-        for step in self.config['steps']:
+
+        # Check if all necessary inputs are present
+        self.task.validate_inputs(input_collection)
+
+        for step in self.task.steps:
             # Print the current step being processed
-            print(step['name'], "...")
+            print(step.name, "...")
             
             # Determine the system prompt to use for the current step
-            system_prompt = step["system-prompt"] if "system-prompt" in step.keys() \
-                else self.config['system-prompt']
+            system_prompt = step.system_prompt if step.system_prompt \
+                else self.task.system_prompt
             
             # Start forming the prompt based on the step's instruction template
-            prompt = step["instruction"]
+            prompt = step.instruction
             
             # Replace placeholders in the prompt with actual inputs from the input collection
-            for input_needed in step['inputs']:
+            for input_needed in step.inputs:
                 if input_needed not in input_collection.keys():
                     raise AttributeError(f"{input_needed} input is not available.")
                 print(f"Processing {input_needed}...")
@@ -58,8 +63,8 @@ class AIAgent:
                 ])
             
             # Update the input collection with the response from the LLM client for the current step's output
-            input_collection[step['output']] = response
+            input_collection[step.output] = response
         
         # Return the final output from the input collection after all steps have been processed
-        return input_collection['final-output']
+        return input_collection[self.task.final_output]
 
